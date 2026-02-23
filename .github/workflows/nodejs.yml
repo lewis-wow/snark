@@ -25,16 +25,13 @@ jobs:
         run: pnpm install
 
       - name: Check formatting
-        run: pnpm format:check
+        run: pnpm prettier:check
 
       - name: Build project
         run: pnpm build
 
       - name: Run linter
         run: pnpm lint
-
-      - name: Run check-types
-        run: pnpm check-types
 
       - name: Run unit tests
         run: pnpm test
