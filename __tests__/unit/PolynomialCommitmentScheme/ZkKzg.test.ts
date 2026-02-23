@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { ZkKzg } from '../../../src/PolynomialCommitmentScheme/ZkKzg';
 import { evalPolyAt } from '../../../src/utils/evalPolyAt';
+import { rand } from '../../../src/utils/rand';
 
 describe('ZkKzg', () => {
   test('works', () => {
@@ -9,7 +10,9 @@ describe('ZkKzg', () => {
     // f(x) = 5 + 4x + 3x^2 + 2x^3 + x^4
     const f_coeffs = [5n, 4n, 3n, 2n, 1n];
     // r(x) = 1 + 2x + 3x^2 + 4x^3 + 5x^4
-    const r_coeffs = [1n, 2n, 3n, 4n, 5n];
+    const r_coeffs = Array.from({ length: f_coeffs.length }, () =>
+      rand(ZkKzg.Fr),
+    );
 
     const { pp_G1, pp_H, alpha_G2, H } = zkKzg.setup({
       degree: f_coeffs.length - 1,

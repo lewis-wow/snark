@@ -1,5 +1,6 @@
 import { assert } from '../assert.js';
 import { bls12_381 } from '@noble/curves/bls12-381.js';
+import { rand } from '../utils/rand.js';
 
 export type PointG1 = InstanceType<typeof bls12_381.G1.Point>;
 export type PointG2 = InstanceType<typeof bls12_381.G2.Point>;
@@ -17,12 +18,6 @@ export class ZkKzg {
   static readonly G1_ZERO = bls12_381.G1.Point.ZERO;
   static readonly Fr = bls12_381.fields.Fr;
   static readonly ZERO = 0n;
-
-  private _rand(): bigint {
-    return ZkKzg.Fr.fromBytes(
-      crypto.getRandomValues(new Uint8Array(ZkKzg.Fr.BYTES)),
-    );
-  }
 
   /**
    * Creates public parameters using trusted setup.
@@ -81,8 +76,8 @@ export class ZkKzg {
     const { degree } = opts;
     assert(degree > 0);
 
-    let alpha = this._rand();
-    let beta = this._rand();
+    let alpha = rand(ZkKzg.Fr);
+    let beta = rand(ZkKzg.Fr);
 
     const { pp_G1, pp_H, alpha_G2, H } = this._setup({ degree, alpha, beta });
 
