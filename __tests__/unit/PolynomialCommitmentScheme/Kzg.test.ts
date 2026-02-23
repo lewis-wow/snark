@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { Kzg } from '../../../src/PolynomialCommitmentScheme/Kzg';
 import { evalPolyAt } from '../../../src/utils/evalPolyAt';
+import { lagrangeInterpolation } from '../../../src/utils/lagrangeInterpolation';
 
 describe('Kzg', () => {
   test('works', () => {
@@ -32,5 +33,28 @@ describe('Kzg', () => {
     });
 
     expect(isValid).toBe(true);
+  });
+
+  test('verifier can reconstruct the polynomial from evaluations', () => {
+    // The prover's secret polynomial
+    const f_coeffs = [5n, 4n, 3n, 2n, 1n];
+    const degree = f_coeffs.length - 1;
+
+    const collectedPoints: { x: bigint; y: bigint }[] = [];
+
+    // The verifier requests d + 1 evaluations at different points
+    for (let i = 0; i <= degree; i++) {
+      const u = BigInt(i);
+
+      // Prover honestly evaluates and returns v
+      const v = evalPolyAt(Kzg.Fr, f_coeffs, u);
+      collectedPoints.push({ x: u, y: v });
+    }
+
+    // The verifier computes the secret coefficients
+    const recoveredCoeffs = lagrangeInterpolation(Kzg.Fr, collectedPoints);
+
+    // The test passes proving the verifier found the exact secret polynomial
+    expect(recoveredCoeffs).toEqual(f_coeffs);
   });
 });

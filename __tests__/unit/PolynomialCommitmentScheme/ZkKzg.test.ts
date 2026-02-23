@@ -47,4 +47,43 @@ describe('ZkKzg', () => {
 
     expect(isValid).toBe(true);
   });
+
+  test('commitments to the same polynomial are completely unpredictable', () => {
+    const zkKzg = new ZkKzg();
+
+    // The prover's secret polynomial remains the exact same
+    const f_coeffs = [5n, 4n, 3n, 2n, 1n];
+
+    // We generate two entirely different random blinding polynomials
+    // We generate new polynomial for each new f polynomial commitment.
+    const r1_coeffs = Array.from({ length: f_coeffs.length }, () =>
+      rand(ZkKzg.Fr),
+    );
+    const r2_coeffs = Array.from({ length: f_coeffs.length }, () =>
+      rand(ZkKzg.Fr),
+    );
+
+    const { pp_G1, pp_H } = zkKzg.setup({
+      degree: f_coeffs.length - 1,
+    });
+
+    // Generate the first commitment
+    const com_f1 = zkKzg.commit({
+      pp_G1,
+      pp_H,
+      f_coeffs,
+      r_coeffs: r1_coeffs,
+    });
+
+    // Generate a second commitment to the SAME secret data
+    const com_f2 = zkKzg.commit({
+      pp_G1,
+      pp_H,
+      f_coeffs,
+      r_coeffs: r2_coeffs,
+    });
+
+    // The verifier cannot link the commitments because the blinding factors randomize the curve points
+    expect(com_f1.equals(com_f2)).toBe(false);
+  });
 });
