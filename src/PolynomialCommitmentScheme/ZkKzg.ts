@@ -220,6 +220,8 @@ export class ZkKzg {
 
     // e(G1, G2)^{q_f(alpha) * (alpha - u)} * e(H, G2)^{q_r(alpha) * (alpha - u)} = e(G1, G2)^(f(alpha) - v) * e(H, G2)^(r(alpha) - v_r)
     // <=>
+    // q_f(alpha) * (alpha - u) = f(alpha) - v
+    // q_r(alpha) * (alpha - u) = r(alpha) - v_r
     return bls12_381.fields.Fp12.eql(pairing1, pairing2);
   }
 }
