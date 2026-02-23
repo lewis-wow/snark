@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { PolynomialCommitmentScheme } from '../../src/PolynomialCommitmentScheme';
+import { PolynomialCommitmentScheme } from '../../../src/PolynomialCommitmentScheme/PolynomialCommitmentScheme';
 
 describe('PolynomialCommitmentScheme', () => {
   test('works', () => {

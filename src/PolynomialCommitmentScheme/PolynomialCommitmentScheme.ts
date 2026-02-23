@@ -1,11 +1,17 @@
 import * as galois from '@guildofweavers/galois';
-import { assert } from './assert.js';
+import { assert } from '../assert.js';
 import { bls12_381 } from '@noble/curves/bls12-381.js';
 
 export type PointG1 = InstanceType<typeof bls12_381.G1.Point>;
 export type PointG2 = InstanceType<typeof bls12_381.G2.Point>;
 
+export type Setup = { pp: PointG1[]; alpha_G2: PointG2 };
+
 export class PolynomialCommitmentScheme {
+  static readonly G1 = bls12_381.G1.Point.BASE;
+  static readonly G2 = bls12_381.G2.Point.BASE;
+  static readonly G1_ZERO = bls12_381.G1.Point.ZERO;
+
   readonly field: galois.FiniteField;
 
   constructor() {
@@ -19,22 +25,19 @@ export class PolynomialCommitmentScheme {
    * S_p = pp = parameters for prover.
    * S_v = alpha_G2 = parameter for verifier.
    */
-  setup(opts: { degree: number }): { pp: PointG1[]; alpha_G2: PointG2 } {
-    const { degree } = opts;
+  protected _setup(opts: { degree: number; alpha: bigint }): Setup {
+    const { degree, alpha } = opts;
     assert(degree > 0);
 
     // G1 is the base point (generator) for the first cryptographic group of the BLS12-381 curve.
     // Its coordinates are in the base field F_p making it smaller and computationally faster.
     // We use G1 to create the prover's public parameters (pp) and all polynomial commitments.
-    const G1 = bls12_381.G1.Point.BASE;
+    const G1 = PolynomialCommitmentScheme.G1;
 
     // G2 is the base point (generator) for the second cryptographic group of the BLS12-381 curve.
     // Its coordinates are in the extension field F_p^2 making it larger and slower to compute.
     // We need G2 specifically to create the verifier's key (alpha_G2) which is required for the bilinear pairing check.
-    const G2 = bls12_381.G2.Point.BASE;
-
-    // Sample random alfa
-    let alpha = this.field.rand();
+    const G2 = PolynomialCommitmentScheme.G2;
 
     // pp = [H_0 = G, H_1 = a*G, H_2 = a^2*G, ..., H_d = a^d*G]
     let currentAlpha = 1n;
@@ -50,8 +53,24 @@ export class PolynomialCommitmentScheme {
     // The Elliptic Curve Discrete Logarithm Problem (ECDLP) guarantees that finding 'a' from G2 and alpha_G2 is computationally infeasible.
     const alpha_G2 = G2.multiply(alpha);
 
-    // Remove alfa (trusted setup).
-    // We have to trust that the prover destroy alfa.
+    return { pp, alpha_G2 };
+  }
+
+  /**
+   * Creates public parameters using trusted setup.
+   *
+   * S(C) = (S_p, S_v)
+   * S_p = pp = parameters for prover.
+   * S_v = alpha_G2 = parameter for verifier.
+   */
+  setup(opts: { degree: number }): Setup {
+    const { degree } = opts;
+    assert(degree > 0);
+
+    let alpha = this.field.rand();
+
+    const { pp, alpha_G2 } = this._setup({ degree, alpha });
+
     alpha = null;
 
     return { pp, alpha_G2 };
@@ -68,7 +87,7 @@ export class PolynomialCommitmentScheme {
     // com_f = f(alfa) * G;
     // f(x) = f0 + f1*x + f2*x^2 + ... + fd*x^d
     //    => com_f = f0*H0 + f1*H1 + f2*H2 + ... + fd*Hd = f(alfa) * G
-    let com_f = bls12_381.G1.Point.ZERO;
+    let com_f = PolynomialCommitmentScheme.G1_ZERO;
     for (let i = 0; i < pp.length; i++) {
       const term = pp[i].multiply(coefficients[i]);
       com_f = com_f.add(term);
@@ -89,8 +108,10 @@ export class PolynomialCommitmentScheme {
    *
    * f(u) = v
    * <=> u is root of F = f - v
-   * <=> (X - u) divides F
+   * <=> (X - u) divides F = f - v
    * <=> Exist q, so q(X) * (X - u) = f(X) - v
+   *
+   * This division only works without a remainder if v is the true evaluation of f(u).
    */
   prove(opts: { pp: PointG1[]; f_coefficients: bigint[]; u: bigint }): PointG1 {
     const { pp, f_coefficients, u } = opts;
@@ -131,8 +152,8 @@ export class PolynomialCommitmentScheme {
   }): boolean {
     const { com_f, com_q, u, v, alpha_G2 } = opts;
 
-    const G1 = bls12_381.G1.Point.BASE;
-    const G2 = bls12_381.G2.Point.BASE;
+    const G1 = PolynomialCommitmentScheme.G1;
+    const G2 = PolynomialCommitmentScheme.G2;
 
     // Bilinear property: e(aG_1, bG_2) = e(G_1, G_2)^{ab}
 
