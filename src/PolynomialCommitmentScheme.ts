@@ -14,6 +14,10 @@ export class PolynomialCommitmentScheme {
 
   /**
    * Creates public parameters using trusted setup.
+   *
+   * S(C) = (S_p, S_v)
+   * S_p = pp = parameters for prover.
+   * S_v = alpha_G2 = parameter for verifier.
    */
   setup(opts: { degree: number }): { pp: PointG1[]; alpha_G2: PointG2 } {
     const { degree } = opts;
@@ -33,11 +37,13 @@ export class PolynomialCommitmentScheme {
       pp.push(point);
     }
 
-    // Secret value for pairing.
+    // alpha_G2 is the secret scalar 'a' masked as a point on the G2 elliptic curve.
+    // It is created through scalar multiplication of the G2 generator point by 'a'.
+    // The Elliptic Curve Discrete Logarithm Problem (ECDLP) guarantees that finding 'a' from G2 and alpha_G2 is computationally infeasible.
     const alpha_G2 = G2.multiply(a);
 
     // Remove alfa (trusted setup).
-    // We have to trust that the prover deletes alfa.
+    // We have to trust that the prover destroy alfa.
 
     return { pp, alpha_G2 };
   }
