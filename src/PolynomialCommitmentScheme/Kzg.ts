@@ -1,4 +1,3 @@
-import * as galois from '@guildofweavers/galois';
 import { assert } from '../assert.js';
 import { bls12_381 } from '@noble/curves/bls12-381.js';
 
@@ -7,16 +6,12 @@ export type PointG2 = InstanceType<typeof bls12_381.G2.Point>;
 
 export type Setup = { pp: PointG1[]; alpha_G2: PointG2 };
 
-export class PolynomialCommitmentScheme {
+export class Kzg {
   static readonly G1 = bls12_381.G1.Point.BASE;
   static readonly G2 = bls12_381.G2.Point.BASE;
   static readonly G1_ZERO = bls12_381.G1.Point.ZERO;
-
-  readonly field: galois.FiniteField;
-
-  constructor() {
-    this.field = galois.createPrimeField(bls12_381.fields.Fr.ORDER);
-  }
+  static readonly Fr = bls12_381.fields.Fr;
+  static readonly ZERO = 0n;
 
   /**
    * Creates public parameters using trusted setup.
@@ -32,19 +27,19 @@ export class PolynomialCommitmentScheme {
     // G1 is the base point (generator) for the first cryptographic group of the BLS12-381 curve.
     // Its coordinates are in the base field F_p making it smaller and computationally faster.
     // We use G1 to create the prover's public parameters (pp) and all polynomial commitments.
-    const G1 = PolynomialCommitmentScheme.G1;
+    const G1 = Kzg.G1;
 
     // G2 is the base point (generator) for the second cryptographic group of the BLS12-381 curve.
     // Its coordinates are in the extension field F_p^2 making it larger and slower to compute.
     // We need G2 specifically to create the verifier's key (alpha_G2) which is required for the bilinear pairing check.
-    const G2 = PolynomialCommitmentScheme.G2;
+    const G2 = Kzg.G2;
 
     // pp = [H_0 = G, H_1 = a*G, H_2 = a^2*G, ..., H_d = a^d*G]
     let currentAlpha = 1n;
     const pp: PointG1[] = [];
     for (let i = 0; i < degree + 1; i++) {
       const point = G1.multiply(currentAlpha);
-      currentAlpha = this.field.mul(currentAlpha, alpha);
+      currentAlpha = Kzg.Fr.mul(currentAlpha, alpha);
       pp.push(point);
     }
 
@@ -67,7 +62,9 @@ export class PolynomialCommitmentScheme {
     const { degree } = opts;
     assert(degree > 0);
 
-    let alpha = this.field.rand();
+    let alpha = Kzg.Fr.fromBytes(
+      crypto.getRandomValues(new Uint8Array(Kzg.Fr.BYTES)),
+    );
 
     const { pp, alpha_G2 } = this._setup({ degree, alpha });
 
@@ -80,16 +77,16 @@ export class PolynomialCommitmentScheme {
    * Creates prover's binding, not hiding, commitment com_f = f(alfa) * G.
    * Hiding commitment requires secret random parameter r.
    */
-  commit(opts: { pp: PointG1[]; coefficients: bigint[] }): PointG1 {
-    const { pp, coefficients } = opts;
-    assert(pp.length === coefficients.length);
+  commit(opts: { pp: PointG1[]; f_coeffs: bigint[] }): PointG1 {
+    const { pp, f_coeffs } = opts;
+    assert(pp.length === f_coeffs.length);
 
     // com_f = f(alfa) * G;
     // f(x) = f0 + f1*x + f2*x^2 + ... + fd*x^d
     //    => com_f = f0*H0 + f1*H1 + f2*H2 + ... + fd*Hd = f(alfa) * G
-    let com_f = PolynomialCommitmentScheme.G1_ZERO;
+    let com_f = Kzg.G1_ZERO;
     for (let i = 0; i < pp.length; i++) {
-      const term = pp[i].multiply(coefficients[i]);
+      const term = pp[i].multiply(f_coeffs[i]);
       com_f = com_f.add(term);
     }
 
@@ -113,23 +110,23 @@ export class PolynomialCommitmentScheme {
    *
    * This division only works without a remainder if v is the true evaluation of f(u).
    */
-  prove(opts: { pp: PointG1[]; f_coefficients: bigint[]; u: bigint }): PointG1 {
-    const { pp, f_coefficients, u } = opts;
+  prove(opts: { pp: PointG1[]; f_coeffs: bigint[]; u: bigint }): PointG1 {
+    const { pp, f_coeffs, u } = opts;
 
     // The quotient polynomial q(x) has a degree one less than f(x)
-    const q_coefficients = new Array<bigint>(f_coefficients.length - 1);
+    const q_coeffs = new Array<bigint>(f_coeffs.length - 1);
 
     // Calculate q(x) coefficients using synthetic division
-    let carry = this.field.zero;
-    for (let i = f_coefficients.length - 1; i > 0; i--) {
-      carry = this.field.add(f_coefficients[i], this.field.mul(u, carry));
-      q_coefficients[i - 1] = carry;
+    let carry = Kzg.ZERO;
+    for (let i = f_coeffs.length - 1; i > 0; i--) {
+      carry = Kzg.Fr.add(f_coeffs[i], Kzg.Fr.mul(u, carry));
+      q_coeffs[i - 1] = carry;
     }
 
     // The proof is the commitment to the quotient polynomial q(x)
-    const q_pp = pp.slice(0, q_coefficients.length);
+    const q_pp = pp.slice(0, q_coeffs.length);
 
-    return this.commit({ pp: q_pp, coefficients: q_coefficients });
+    return this.commit({ pp: q_pp, f_coeffs: q_coeffs });
   }
 
   /**
@@ -152,8 +149,8 @@ export class PolynomialCommitmentScheme {
   }): boolean {
     const { com_f, com_q, u, v, alpha_G2 } = opts;
 
-    const G1 = PolynomialCommitmentScheme.G1;
-    const G2 = PolynomialCommitmentScheme.G2;
+    const G1 = Kzg.G1;
+    const G2 = Kzg.G2;
 
     // Bilinear property: e(aG_1, bG_2) = e(G_1, G_2)^{ab}
 
