@@ -21,29 +21,38 @@ export class PolynomialCommitmentScheme {
    */
   setup(opts: { degree: number }): { pp: PointG1[]; alpha_G2: PointG2 } {
     const { degree } = opts;
+    assert(degree > 0);
 
+    // G1 is the base point (generator) for the first cryptographic group of the BLS12-381 curve.
+    // Its coordinates are in the base field F_p making it smaller and computationally faster.
+    // We use G1 to create the prover's public parameters (pp) and all polynomial commitments.
     const G1 = bls12_381.G1.Point.BASE;
+
+    // G2 is the base point (generator) for the second cryptographic group of the BLS12-381 curve.
+    // Its coordinates are in the extension field F_p^2 making it larger and slower to compute.
+    // We need G2 specifically to create the verifier's key (alpha_G2) which is required for the bilinear pairing check.
     const G2 = bls12_381.G2.Point.BASE;
 
     // Sample random alfa
-    const a = this.field.rand();
+    let alpha = this.field.rand();
 
     // pp = [H_0 = G, H_1 = a*G, H_2 = a^2*G, ..., H_d = a^d*G]
     let currentAlpha = 1n;
     const pp: PointG1[] = [];
     for (let i = 0; i < degree + 1; i++) {
       const point = G1.multiply(currentAlpha);
-      currentAlpha = this.field.mul(currentAlpha, a);
+      currentAlpha = this.field.mul(currentAlpha, alpha);
       pp.push(point);
     }
 
     // alpha_G2 is the secret scalar 'a' masked as a point on the G2 elliptic curve.
     // It is created through scalar multiplication of the G2 generator point by 'a'.
     // The Elliptic Curve Discrete Logarithm Problem (ECDLP) guarantees that finding 'a' from G2 and alpha_G2 is computationally infeasible.
-    const alpha_G2 = G2.multiply(a);
+    const alpha_G2 = G2.multiply(alpha);
 
     // Remove alfa (trusted setup).
     // We have to trust that the prover destroy alfa.
+    alpha = null;
 
     return { pp, alpha_G2 };
   }
@@ -105,10 +114,10 @@ export class PolynomialCommitmentScheme {
   /**
    * Verifies if the proof is valid.
    *
-   * (alfa - u) * com_q = com_f - v * G
-   * <=> (X - u) * q(X) = f(X) * G - v * G
-   * <=> (X - u) * q(X) = f(X) - v
-   * <=> q(X) * (X - u) = f(X) - v
+   * (alpha - u) * com_q = com_f - v * G
+   * <=> (alpha - u) * q(alpha) = f(alpha) * G - v * G
+   * <=> (alpha - u) * q(alpha) = f(alpha) - v
+   * <=> q(alpha) * (alpha - u) = f(alpha) - v
    *
    * Checks the pairing equality:
    * e(com_q, alpha*G2 - u*G2) == e(com_f - v*G1, G2)
@@ -125,15 +134,30 @@ export class PolynomialCommitmentScheme {
     const G1 = bls12_381.G1.Point.BASE;
     const G2 = bls12_381.G2.Point.BASE;
 
-    const v_G1 = G1.multiply(v);
-    const lhs_G1 = com_f.subtract(v_G1);
+    // Bilinear property: e(aG_1, bG_2) = e(G_1, G_2)^{ab}
 
-    const u_G2 = G2.multiply(u);
-    const rhs_G2 = alpha_G2.subtract(u_G2);
+    // e(com_q, alpha*G_2 - u*G_2)
+    // com_q = q(alfa) * G_1
+    // e(q(alfa) * G_1, (alpha-u) * G_2)
+    // Applying bilinear property: e(G_1, G_2)^{q(alfa) * (alpha-u)}
+    const pairing2 = bls12_381.pairing(
+      com_q,
+      // alpha*G2 - u*G2
+      alpha_G2.subtract(G2.multiply(u)),
+    );
 
-    const pairing1 = bls12_381.pairing(lhs_G1, G2);
-    const pairing2 = bls12_381.pairing(com_q, rhs_G2);
+    // e(com_f - v*G_1, G_2)
+    // com_f = f(alfa) * G_1
+    // e((f(alfa) - v) * G_1, G_2)
+    // Applying bilinear property: e(G_1, G_2)^{f(alfa) - v}
+    const pairing1 = bls12_381.pairing(
+      // com_f - v*G1
+      com_f.subtract(G1.multiply(v)),
+      G2,
+    );
 
+    // e(G_1, G_2)^{q(alfa) * (alpha-u)} = e(G_1, G_2)^{f(alfa) - v}
+    // <=> q(alfa) * (alpha-u) = f(alfa) - v
     return bls12_381.fields.Fp12.eql(pairing1, pairing2);
   }
 }
