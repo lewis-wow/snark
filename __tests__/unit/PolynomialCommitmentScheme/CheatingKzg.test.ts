@@ -3,7 +3,7 @@ import { CheatingKzg } from '../../../src/PolynomialCommitmentScheme/CheatingKzg
 import { evalPolyAt } from '../../../src/utils/evalPolyAt';
 
 describe('CheatingKzg', () => {
-  test('works', () => {
+  test('Fake proof', () => {
     const cheatingKzg = new CheatingKzg();
 
     // f(x) = 5 + 4x + 3x^2 + 2x^3 + x^4

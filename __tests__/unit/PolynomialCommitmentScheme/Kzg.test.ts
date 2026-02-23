@@ -4,7 +4,7 @@ import { evalPolyAt } from '../../../src/utils/evalPolyAt';
 import { lagrangeInterpolation } from '../../../src/utils/lagrangeInterpolation';
 
 describe('Kzg', () => {
-  test('works', () => {
+  test('Works', () => {
     const kzg = new Kzg();
 
     // f(x) = 5 + 4x + 3x^2 + 2x^3 + x^4

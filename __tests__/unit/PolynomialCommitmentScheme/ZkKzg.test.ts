@@ -4,7 +4,7 @@ import { evalPolyAt } from '../../../src/utils/evalPolyAt';
 import { rand } from '../../../src/utils/rand';
 
 describe('ZkKzg', () => {
-  test('works', () => {
+  test('Works', () => {
     const zkKzg = new ZkKzg();
 
     // f(x) = 5 + 4x + 3x^2 + 2x^3 + x^4
